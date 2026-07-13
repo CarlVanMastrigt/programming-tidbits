@@ -15,13 +15,12 @@ I'd like to cover what I know with some examples.
 [Example: Order preserving unsigned integer conversion](#order-preserving-unsigned-integer-conversion)
 
 ## The Basics
-For binary floating point types; single precision `float`, double precision `double` and half precision `half` (when you have it). The fundamental structure is the same, and it could be described as “scientific notation in binary”.
+For binary floating point types; single precision `float`, double precision `double` and half precision `half` (when you have it); the fundamental structure is the same, and could be described as “scientific notation in binary”.
 ### Scientific noatation
-You may be familiar with decimal scientific notation:
-$$`\pm m \times 10^e`$$ 
-`m` the mantissa $`1 \geq m < 10`$ 
+You may be familiar with decimal scientific notation:\
+$$\Large \pm m \times 10^e$$\
+`m` the mantissa $1 \leq m < 10$\
 `e` the expontent; any number positive or negative
-test `$1 \geq m < 10$` test
 ### Layout
 
 ## The Details
