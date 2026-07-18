@@ -3,7 +3,7 @@
 I've seen a few people struggle to solve problems that require understanding the intricacies of floating point.
 I'd like to cover what I know with some examples.
 > [!NOTE]
-> This discussion will constrain itself to binary floats and the, decimal floats also exist, but are very rare.
+> This article will constrain itself to the most common IEEE754 binary floats, other kinds of floating point numbers do exist, even decimal floats also exist, but it is rare to encounter anything other than the standard binary ones.
 
 [The Basics](#the-basics)
 
@@ -18,31 +18,49 @@ You may be familiar with decimal scientific notation, but if not a quick refresh
 
 $$\large s \times m \times 10^e$$
 
-`s` the "sign" of the number; positive or negative. Very often only negative numbers will be marked, positive being the default/\
-`m` the "mantissa" which must be greater than or equal to one and less than 10: $\{1 \leq m < 10\}$ this is sometimes called the "significand" or "coefficient".\
+`s` the "sign" of the number; positive or negative. Very often only negative numbers will be marked, positive being the default\
+`m` the "mantissa" which must be greater than or equal to one and less than ten  $$\{1 \leq m < 10\}$$\
+*the mantissa is also sometimes called the "significand" or "coefficient".*\
+This range for the mantissa is for consistency purposes, a value above ten or below one could be represented with a number that **is** within this range but has a higher or lower exponent, for example:  $0.9 = 9.0\times10^-1$ and $11 = 1.1\times10^1$ ao the number with a single (nonzero) digit above the decimal place is the standard.\
 `e` the "expontent" which can be any positive or negative **integer**.\
-Keeping in mind that $10^0 = 1$, $10^{-1} = 0.1$ and so on.
+Keeping in mind that $10^0=1$, $10^{-1}=0.1$ and so on.
 
-This allows any number to be constructed, for example:\
+
+This allows any number to be constructed, for example:
+
 $-9876.43 = -9.87643 \times 10^3$\
 $6.13 = +6.13 \times 10^0$\
 $0.0405 = +4.05 \times 10^{-2}$
 
 ### Binary scientific notation
-Not much changes in base 2 (binary)
+Not much changes in base 2 (binary).\
 $$\large s \times m \times 2^e$$
-
 `s` the sign has exactly the same meaning as in decimal.\
-`m` the mantissa must now be greater than or equal to 1 and less than 2 $\{1 \leq m < 2\}$.\
+`m` the mantissa must now be greater than or equal to one and less than two  $$\{1 \leq m < 2\}$$.\
 *Note that this means the leading binary digit of the mantissa will **always** be 1*\
-`e` the expontent can again be any positive or negative **integer**.\
+`e` the expontent can again be any positive or negative **integer**.
+
+
+
 
 ### Storage layout
-To represent the "sign" of the number, plus or minus $\pm$ a single bit is needed.\
-For all floats you will encounter this will be the top bit, 0 will signify the number is positive, 1 will signify it is negative.\
+#### Sign bit
+To represent the "sign" of the number, positive or negative just a single bit is needed.\
+For all floats you will encounter this will be the top bit, 0 will signify the number is positive, 1 will signify it is negative.
 
-The exponent will be stored in the next few bits (8 for `float`, 11 for `double` and 5 for `half`).\
-Those bits form an unsigned integer E<sub>s</sub> which is the actual exponent `e` with a bias E<sub>b</sub> applied $e = E_{s} - E_{b}$\
+#### Exponent bits
+The exponent will be stored in the next few bits which form an unsigned integer $E_{s}$ which is the actual exponent `e` after a bias $E_{b}$ has been applied\
+$$e = E_{s} - E_{b}$$
+
+Note that the min ([all zeros](#sub-normal-numbers)) and max ([all ones](#inf-&-nan)) values for the stored exponent $E_{s}$ have specicial meanings which don't conform to the above equation for the exponent `e`. As a result the min and max represntable exponents ($E_{min}$ & $E_{max}$) do not include values which would require all zeros or all ones in the exponent bits. The bias for the standard formats is the middle of representable values (rounded down). 
+>Note the min and max here is an inclusive range.
+
+|format|bit count|bias($E_{b}$)|$E_{min}$|$E_{max}$|
+|---|---|---|---|---|
+|`half`|5|15|-14|15|
+|`float`|8|127|-126|127|
+|`double`|11|1023|-1022|1023|
+
 
 ## The Details
 ### Sub-normal numbers
