@@ -30,10 +30,12 @@ $$\large s M \times 10^E$$
 
 - `M` the "mantissa" which must be greater than or equal to one and less than the decimal base (ten) $$\{1 \leq M < 10\}$$
 
-*The mantissa is also sometimes called the "significand" or "coefficient".*\
+*The mantissa is also sometimes called the "significand" or "coefficient".*
+
 *This range for the mantissa is for consistency purposes; any value less than one or larger than the base (ten) could be represented using a mantissa that **is** within this range but has a higher or lower exponent, for example:  $0.9 = 9.0\times10^{-1}$ and $11 = 1.1\times10^1$ choosing a mantissa with a single (nonzero) digit above the decimal place is the standard, that is a mantissa greater than or equal to one and less than the base.*
 
-- `E` the "expontent" which can be any positive or negative **integer**.\
+- `E` the "expontent" which can be any positive or negative **integer**.
+
 Keeping in mind that $10^0=1 ,  10^{2}=100 ,  10^{-1}=0.1$ and so on.
 
 
@@ -76,7 +78,6 @@ The exponent will be stored in the next few bits can be treated as an unsigned i
 
 $$E = E_{storage} - E_{bias}$$
 
-
 Not all values for $E_{storage}$ follow this scheme though; [all zeros](#sub-normal-numbers) and [all ones](#inf-&-nan) are special cases and behave differently. Every other value for $E_{storage}$ will fit this scheme though, and will be a "normal" floating point number.
 
 $E_{min}$ is the minimum exponent represntable by a normal floating point number, simply 1 in $E_{storage}$ which gives: $E_{min} = 1 - E_{bias}$
@@ -89,19 +90,7 @@ $$ 1 \leq E_{storage} \leq 2^{bit\ count} - 2 $$
 
 $$ E_{min} \leq E \leq E_{max} $$
 
-The bias for the standard formats requires that $E_{min} = 1 − E_{max}$ is satisfied, which means $E_{bias}$ be calculated by substituting $E_{min}$ and $E_{max}$ in terms of the bias:
-
-$$
-\begin{split}
-E_{min} & = 1 − E_{max}\\
-1 - E_{bias} & = 1 - (2^{bit\ count} - 2 - E_{bias})\\
-1 - E_{bias} & = 1 - 2^{bit\ count} + 2 + E_{bias}\\
--2 E_{bias} & = - 2^{bit\ count} + 2 \\
-E_{bias} & = \frac{2^{bit\ count}}{2} - 1 \\
-\end{split}
-$$
-
-Note that this is the middle of representable values, rounded such that $E_{max}$ will be one larger, the reason to bias it this way is that numbers smaller than the normal floating point range [are actually representable](#sub-normal-numbers), just with a lower precision. whereas numbers larger than the maximum exponent are not representable at all.
+The value for $E_{bias}$ for each format tries to balance the ability to represent both very large and very small numbers. But there is also a specific [reason](#calculating-the-exponent-bias) for the exact values listed.
 
 #### Mantissa bits
 
@@ -111,10 +100,10 @@ Note that this is the middle of representable values, rounded such that $E_{max}
 |`float`|23|
 |`double`|52|
 
-All remaining bits are used by the mantissa. Because the leading digit will [almost always](#the-details) be 1, it is not stored to avoid wasting space. Instead any floating point number that does not have all zeros or all ones in $E_{storage}$ is treated as having an implicit leading 1. 
-The stored bits thus represent the binary digits following the dot in the mantissa, with the most significant digit having the highest bit.
+All remaining bits are used by the mantissa. Because the leading digit will almost always be 1, it is not stored to avoid wasting space. Instead any [normal](#sub-normal-numbers) floating point number is treated as having an implicit leading 1. 
+The stored bits thus represent the binary digits following the dot in the mantissa.
 
-Another way to think of it is as storing the fractional part of the mantissa.
+Another way to think of this is as storing the fractional part of the mantissa.
 
 $$ M = 1 + \frac {M_{storage}} {2^{bit\ count}}$$
 
@@ -132,8 +121,37 @@ $$ M  =  1 + \frac{M_{storage}} {1024}$$
 
 Hopefully the $M_{binary}$ values reveal just how uninteresting whats going on really is.
 
+#### Putting the bits together
+
+
+
 
 ## The Details
+
+### Calculating the exponent bias
+
+Remember that:
+$E_{min} = 1 - E_{bias}$
+$E_{max} = (2^{bit\ count} - 2) - E_{bias}$
+
+The standard formats actually requires that $E_{min} = 1 − E_{max}$ is satisfied, which means $E_{bias}$ can be calculated by substituting $E_{min}$ and $E_{max}$ in terms of the bias:
+
+
+
+$$
+\begin{split}
+E_{min} & = 1 − E_{max}\\
+1 - E_{bias} & = 1 - (2^{bit\ count} - 2 - E_{bias})\\
+1 - E_{bias} & = 1 - 2^{bit\ count} + 2 + E_{bias}\\
+-2 \times E_{bias} & = - 2^{bit\ count} + 2 \\
+E_{bias} & = \frac{2^{bit\ count}}{2} - 1 \\
+\end{split}
+$$
+
+Note that this is the middle of representable values, rounded such that $E_{max}$ will be one larger. The reason to bias it this way is that numbers smaller than the normal floating point range are actually still [representable](#sub-normal-numbers), just with a lower precision. Whereas numbers larger than the maximum exponent are not representable at all. 
+
+It also means that when subnormal numbers are considered there are exactly as many representable numbers with a magnitude greater than or equal to 1 as there are with a magnitude less than 1.
+
 ### Sub-normal numbers
 ### INF & NAN
 ### Representable numbers
