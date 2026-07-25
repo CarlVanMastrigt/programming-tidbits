@@ -52,7 +52,7 @@ $$\large s M \times 2^E$$
 
 - `s` indicates the sign, positive or negative
 
-- `M` the mantissa (as opposed to decimal) must be greater than or equal to one and less than two  $\{1 \leq M < 2\}$ once again between one and the "base" (two).\
+- `M` a binary mantissa must be greater than or equal to one and less than two  $\{1 \leq M < 2\}$ once again between one and the "base" (two).\
  *Note that this means the leading binary digit of the mantissa will **always** be 1 unless the number is zero*
 
 - `E` the expontent can again be any positive or negative **integer**.\
@@ -66,19 +66,42 @@ For all floats you will encounter this will be the top (most significat in stora
 
 #### Exponent bits
 
-|Format|Bit count|Bias($E_{bias}$)|$E_{min}$|$E_{max}$|
+|Format|Bit count|Bias $E_{bias}$|$E_{min}$|$E_{max}$|
 |:---|:---|:---|:---|:---|
-|`half`|5|15|-14 ($\small 00001_b$)|15 ($\small 11110_b$)|
-|`float`|8|127|-126 ($\small00000001_b$)|127 ($\small 11111110_b$)|
-|`double`|11|1023|-1022 ($\small 00000000001_b$)|1023 ($\small 11111111110_b$)|
+|`half`|5|15|-14 <br>$\small E_{storage} = 00001_b$|15 <br>$\small E_{storage} = 11110_b$|
+|`float`|8|127|-126 <br>$\small E_{storage} = 00000001_b$|127 <br>$\small E_{storage} = 11111110_b$|
+|`double`|11|1023|-1022 <br>$\small E_{storage} = 00000000001_b$|1023 <br>$\small E_{storage} = 11111111110_b$|
 
-The exponent will be stored in the next few bits which form an unsigned integer $E_{storage}$ from which the *actual* exponent `E` is calculated by applying a bias ($E_{bias}$)
+The exponent will be stored in the next few bits can be treated as an unsigned integer $E_{storage}$ from which the *actual* exponent `E` is calculated by applying a bias ($E_{bias}$)
 
 $$E = E_{storage} - E_{bias}$$
 
-The bias for the standard formats is the middle of representable values (rounded down) such that $E_{min} = 1 − E_{max}$ is satisfied.
 
-Note that the min ([all zeros](#sub-normal-numbers)) and max ([all ones](#inf-&-nan)) values possible for the exponent bits $E_{storage}$ have specicial meanings which don't conform to the above equation for the exponent. As a result the valid range of exponents $E_{min} \leq E \leq E_{max}$) does not include these values.
+Not all values for $E_{storage}$ follow this scheme though; [all zeros](#sub-normal-numbers) and [all ones](#inf-&-nan) are special cases and behave differently. Every other value for $E_{storage}$ will fit this scheme though, and will be a "normal" floating point number.
+
+$E_{min}$ is the minimum exponent represntable by a normal floating point number, simply 1 in $E_{storage}$ which gives: $E_{min} = 1 - E_{bias}$
+
+$E_{max}$ is likewise the maximum represntable exponent, with $E_{storage}$ being all ones *except* the lowest bit: $E_{max} = (2^{bit\ count} - 2) - E_{bias}$
+
+So for "normal" floating point numbers:
+
+$$ 1 \leq E_{storage} \leq 2^{bit\ count} - 2 $$
+
+$$ E_{min} \leq E \leq E_{max} $$
+
+The bias for the standard formats requires that $E_{min} = 1 − E_{max}$ is satisfied, which means $E_{bias}$ be calculated by substituting $E_{min}$ and $E_{max}$ in terms of the bias:
+
+$$
+\begin{split}
+E_{min} & = 1 − E_{max}\\
+1 - E_{bias} & = 1 - (2^{bit\ count} - 2 - E_{bias})\\
+1 - E_{bias} & = 1 - 2^{bit\ count} + 2 + E_{bias}\\
+-2 E_{bias} & = - 2^{bit\ count} + 2 \\
+E_{bias} & = \frac{2^{bit\ count}}{2} - 1 \\
+\end{split}
+$$
+
+Note that this is the middle of representable values, rounded such that $E_{max}$ will be one larger, the reason to bias it this way is that numbers smaller than the normal floating point range [are actually representable](#sub-normal-numbers), just with a lower precision. whereas numbers larger than the maximum exponent are not representable at all.
 
 #### Mantissa bits
 
@@ -104,7 +127,7 @@ $$ M  =  1 + \frac{M_{storage}} {1024}$$
 |$0000000000_b$|$M  = 1 + \frac{0} {1024}$|$1.0$|$1.0000000000_b$|
 |$1000000000_b$|$M  = 1 + \frac{512} {1024}$|$1.5$|$1.1000000000_b$|
 |$0000000011_b$|$M  = 1 + \frac{3} {1024}$|$1.0029296875$|$1.0000000011_b$|
-|$1100000001_b$|$M  = 1 + \frac{513} {1024}$|$1.7509765625$|$1.1100000001_b$|
+|$1100000001_b$|$M  = 1 + \frac{769} {1024}$|$1.7509765625$|$1.1100000001_b$|
 |$1111111111_b$|$M  = 1 + \frac{1023} {1024}$|$1.9990234375$|$1.1111111111_b$|
 
 Hopefully the $M_{binary}$ values reveal just how uninteresting whats going on really is.
