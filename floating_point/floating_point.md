@@ -1,7 +1,7 @@
 # Floating Point
 
 I've seen a few people struggle to solve problems that require understanding the intricacies of floating point.
-I'd like to cover what I know with some examples.
+I'd like to cover what I know with some [examples](##interesting-applications).
 
 > [!IMPORTANT]  
 > This page is still a work in progress, it may have incomplete or incorrect information
@@ -13,7 +13,7 @@ I'd like to cover what I know with some examples.
 > It will be important to show numbers in binary a fair bit, they will be marked with a subscript b ($\text{NUMBER}_b$), when not marked in this way a number will be decimal, or it won't matter for the particular number, such as 0 and 1
 
 ## The Basics
-For binary floating point types; single precision `float`, double precision `double` and half precision `half` (when you have it) ; the fundamental structure is the same, and could be described as “[scientific notation](#decimal-scientific-notation) in [binary](#binary-scientific-notation)”.
+For binary floating point types; single precision `float`, double precision `double` and half precision `half` (when you have it) ; the fundamental structure is the same, and could be described as “[scientific notation](#decimal-scientific-notation) in binary”.
 
 $$\large s M \times 2^E$$
 
@@ -59,7 +59,7 @@ $$ 1 \leq E_{\text{storage}} \leq 2^{\text{E bit count}} - 2 $$
 
 $$ E_{\text{min}} \leq E \leq E_{\text{max}} $$
 
-The value for $E_{\text{bias}}$ for each format balances the ability to represent numbers with both very large and very small magnitudes. But there is also a [reason](#calculating-the-exponent-bias) in the specification for the values of $E_{\text{bias}}$ listed.
+The value of $E_{\text{bias}}$ for each type balances the ability to represent numbers with both very large and very small magnitudes. But there is also a [reason](#calculating-the-exponent-bias) in the specification for the values of $E_{\text{bias}}$ listed.
 
 #### Mantissa: M
 
@@ -71,7 +71,8 @@ The value for $E_{\text{bias}}$ for each format balances the ability to represen
 
 $$0 \leq M_{\text{storage}} < 2^{\text{M bit count}}$$
 
-All remaining bits are used by the mantissa. Because the leading digit will [*almost*](#sub-normal-numbers) always be 1, it is not stored to avoid wasting space. Instead any normal floating point number is treated as having an implicit leading 1. 
+All remaining bits are used by the mantissa. Because the leading digit in binary scienticic notation [will always be 1](#binary-scientific-notation), it is not stored to avoid wasting space. Instead every "normal" floating point number is treated as having an implicit leading 1.
+
 The stored bits thus represent only the binary digits following the dot in the mantissa.
 
 Another way to think of this is as storing the fractional part of the mantissa:
@@ -94,7 +95,7 @@ Hopefully the $M_{\text{binary}}$ values illustrate just how uninteresting whats
 
 #### Putting the bits together
 
-For any normal floating point number the equation we get by putting the above parts together is:
+For any normal floating point number the equation we get by putting the above elements together is:
 
 $$
 \left\lbrace
@@ -114,7 +115,7 @@ Some examples, again using `half` to keep them compact and remembering that for 
 |$0\ 11110\ 1111111111_b$|$+1 \times (1 + \frac{1023} {1024}) \times 2^{30-15}$|$65504.0$|
 |$0\ 00001\ 0000000000_b$|$+1 \times (1 + \frac{0} {1024}) \times 2^{1-15}$|$0.00006103515625$|
 
-*Note that the last two examples have the largest exponent* ($E_{\text{max}}$) *with the largest mantissa and the smallest exponent* ($E_{\text{emin}}$) *with the smallest mantissa, these result in the largest and smallest possible magnitudes for a "normal"* `half`
+*Note that the last two examples have the largest exponent* ($E_{\text{max}}$) *with the largest possible mantissa and, the smallest exponent* ($E_{\text{emin}}$) *with the smallest possible mantissa. These combinations result in the largest and smallest possible magnitudes for a "normal"* `half` *respectively.*
 
 
 ## The Details
@@ -130,13 +131,52 @@ Some examples, again using `half` to keep them compact and remembering that for 
 
 ## Interesting applications 
 
-### Order preserving unsigned integer conversion
+### Order equivalent unsigned integer manipulated reinterpretation
 
-## Extras
+The title is quite a mouthful, but the goal of this is to map every `float` (or `double`/`half`) (that isn't INF or NAN) to an unsigned integer of the appropriate size, in such a way that all comparisons (`<` `>` &c.) behave the same way for the unsigned integer as they would have for the original `float`.
+
+#### Why would anyone want this though?
+
+- On the GPU its very handy to be able to find the range of some large chunk of data. For example; you might want an oriented bounding box for which part of the world is actually visible on screen. For that you would need the min and max of worldspace position in X, Y and Z across all pixels on screen. There are ways to keep thae data in float and reduce the data in a complex post processing step, sure, but it'd be super convenient to make use of the atomic_min and atomic_max operations. Alas, they only work for unsigned integers... You *could* just cast your floats normally and apply a bias to avoid dealing with negatives, but you're going to lose precision doing it that way, which will only get worse the larger a bias you need. Also a *real* cast (rather than a bit cast) can actually be pretty expensive.
+
+- When performing a radix sort you need to be able to split your data up into ordered buckets, first by "small scale order" then by "large scale order". This is very simple if your number is an unsigned integer, first you sort into the appropriate bucket for the bottom 16 bits, then into the appropriate bucket for the top 16 bits, then you stitch the buckets together, one after the other and they are sorted. So if we needed to sort floats with a radix sort, it would be very useful if we could convert them to unsigned integers that had the same comparison order (so that the ordered buckets would still work).
+
+- Use your imagination... This is definitely something useful to have in your toolbox.
+
+#### How is it done?
+
+I'll give the code in C, hopefully the bit cast isn't too unreadble or offensive: 
+
+To go from a `float` to a `uint`:
+```
+uint32_t float_to_uint(float f)
+{
+	uint32_t u = *(uint32_t*)&f;
+	return u ^ ((u & 0x80000000) ? 0xFFFFFFFF : 0x80000000);
+}
+```
+
+And to go from a `uint` back to a `float` when we're done with it:
+```
+float uint_to_float(uint32_t u)
+{
+	u ^= ((u & 0x80000000) ? 0x80000000 : 0xFFFFFFFF);
+	return *(float*)&u;
+}
+```
+
+Not much to it is there?
+
+
+#### But *WHY* does that work?
+
+
+
+## Extras and "tidbits"
 
 ### Decimal scientific notation
 
-Scientific notation is a way of representing both very large and very small numbers in a realtively easy to read fashion (once you get used to it) that is consistent. In practice you will likely only encounter **decimal** scientific notation.
+Scientific notation is a way of representing both very large and very small numbers in a consistent way that is realtively easy to read (once you get used to it). In practice you are likely only ever encounter **decimal** scientific notation.
  
 $$\large s M \times 10^E$$
 
@@ -154,14 +194,38 @@ Keeping in mind that: $10^0=1 ,  10^{2}=100 ,  10^{-1}=0.1$ and so on.
 
 Some examples:
 
-|Regular|Scientific notation|
+|Standard notation|Scientific notation|
 |:---:|:---:|
 | $-9876.43$ | $-9.87643 \times 10^3$ |
 | $6.13$ | $6.13 \times 10^0$ |
 | $-0.0405$ | $-4.05 \times 10^{-2}$ |
 
+As an aside: there are some benefits in separting out the exponent like this. For one, it makes judging the magnitude of numbers easier. Looking at:
+
+$$ 12461100 \ , \ 3420200 \ , \ 269100 $$
+
+It's perhaps a little difficult to judge which is larger, and by how much, but:
+
+$$ 1.24611\times10^7 \ , \ 3.4202\times10^6 \ , \ 2.691\times10^5 $$
+
+Hopefully makes it easier to compare and understand the magnitudes at a glance.
+
+Operating on numbers in scientific notation is generally also easier, both to actually calculate and to approximate the result. Using multiplication as an example:
+
+$$
+\begin{split}
+1.24611\times10^7 \ \ \times \ \ 3.4202\times10^6 & = 1.24611\times3.4202 \ \ \times \ \ 10^7\times10^6\\
+& = 4.261945422 \ \times \ 10^{7+6}\\
+& = 4.2619 \times 10^{13}\\
+\end{split}
+$$
+
+And if the result mantissa is larger than ten; simply increase the exponent by 1 and shift the decimal place of the mantissa accordingly.
+
+*Note that in this example I've chosen to round the result mantissa such that it's precision is commensurate with the operand that has the lowest precision* ($$3.4202\times10^6$$) *Though in practice error/uncertanty measures are a more useful metric in determining the appropriate number of decimal places to keep.*
+
 ### Binary scientific notation
-Not much changes in base 2 (binary) scientific notation.
+Not much is different in base 2 (binary) scientific notation.
 
 $$\large s M \times 2^E$$
 
