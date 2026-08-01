@@ -43,13 +43,13 @@ $$
 |`double`|11|1023|-1022 <br>$\small E_{\text{storage}} = 00000000001_b$|1023 <br>$\small E_{\text{storage}} = 11111111110_b$|
 
 The exponent will be stored after the sign; in the next ($\text{E bit count}$) most significant bits.\
-It can be treated as an unsigned integer $E_{\text{storage}}$ from which the **actual** exponent `E` is calculated by applying a bias ($E_{\text{bias}}$)
+It can be treated as an unsigned integer $E_{\text{storage}}$ from which the **actual** exponent `E` is calculated by applying a bias ($E_{\text{bias}}$, seen in the above table).
 
 $$E = E_{\text{storage}} - E_{\text{bias}}$$
 
 Not all values for $E_{\text{storage}}$ follow this scheme though; [all zeros](#sub-normal-numbers) and [all ones](#inf-&-nan) are special cases that behave differently. Every other value for $E_{\text{storage}}$ will fit this scheme though, and will be a "normal" floating point number.
 
-$E_{\text{min}}$ is the smallest exponent a given floating point type can have, it corresponds to 1 in $E_{\text{storage}}$ which gives: $E_{\text{min}} = 1 - E_{\text{bias}}$
+$E_{\text{min}}$ is the smallest exponent a given floating point type can express, it corresponds to 1 in $E_{\text{storage}}$ which gives: $E_{\text{min}} = 1 - E_{\text{bias}}$
 
 $E_{\text{max}}$ is likewise the largest exponent, with $E_{\text{storage}}$ being all ones *except* the lowest bit: $E_{\text{max}} = (2^{\text{E bit count}} - 2) - E_{\text{bias}}$
 
@@ -71,7 +71,7 @@ The value of $E_{\text{bias}}$ for each type balances the ability to represent n
 
 $$0 \leq M_{\text{storage}} < 2^{\text{M bit count}}$$
 
-All remaining bits are used by the mantissa. Because the leading digit in binary scienticic notation [will always be 1](#binary-scientific-notation), it is not stored to avoid wasting space. Instead every "normal" floating point number is treated as having an implicit leading 1.
+All remaining bits are used by the mantissa. Because the leading digit in binary scienticic notation [will always be 1](#binary-scientific-notation), it isn't stored so as to avoid wasting space. Instead every "normal" floating point number is treated as having an *implicit* leading 1.
 
 The stored bits thus represent only the binary digits following the dot in the mantissa.
 
@@ -85,11 +85,11 @@ $$ M  =  1 + \frac{M_{\text{storage}}} {1024}$$
 
 |$M_{\text{storage}}$|$\text{Equation}$|$M_{\text{decimal}}$|$M_{\text{binary}}$|
 |:---|:---|:---|:---|
-|$0000000000_b$|$M  = 1 + \frac{0} {1024}$|$1.0$|$1.0000000000_b$|
-|$1000000000_b$|$M  = 1 + \frac{512} {1024}$|$1.5$|$1.1000000000_b$|
-|$0000000011_b$|$M  = 1 + \frac{3} {1024}$|$1.0029296875$|$1.0000000011_b$|
-|$1100000001_b$|$M  = 1 + \frac{769} {1024}$|$1.7509765625$|$1.1100000001_b$|
-|$1111111111_b$|$M  = 1 + \frac{1023} {1024}$|$1.9990234375$|$1.1111111111_b$|
+|$0000000000_b$(0)|$M  = 1 + \frac{0} {1024}$|$1.0$|$1.0000000000_b$|
+|$1000000000_b$(512)|$M  = 1 + \frac{512} {1024}$|$1.5$|$1.1000000000_b$|
+|$0000000011_b$(3)|$M  = 1 + \frac{3} {1024}$|$1.0029296875$|$1.0000000011_b$|
+|$1100000001_b$(769)|$M  = 1 + \frac{769} {1024}$|$1.7509765625$|$1.1100000001_b$|
+|$1111111111_b$(1023)|$M  = 1 + \frac{1023} {1024}$|$1.9990234375$|$1.1111111111_b$|
 
 Hopefully the $M_{\text{binary}}$ values illustrate just how uninteresting whats going on really is.
 
@@ -129,23 +129,29 @@ Some examples, again using `half` to keep them compact and remembering that for 
 ### Representable numbers
 ### Precision loss
 
-## Interesting applications 
+## Interesting applications
+
+For each of these; I'd highly recommend thinking about the problem yourself for a bit first. You'll remember the solution and understand it better if you do.
 
 ### Order equivalent unsigned integer manipulated reinterpretation
 
-The title is quite a mouthful, but the goal of this is to map every `float` (or `double`/`half`) (that isn't INF or NAN) to an unsigned integer of the appropriate size, in such a way that all comparisons (`<` `>` &c.) behave the same way for the unsigned integer as they would have for the original `float`.
+The title is quite a mouthful, but the goal of this is to map every `float` (or `double`/`half`) (that isn't INF or NAN) to an unsigned integer of the appropriate size, in such a way that all comparisons (`<` `>` etc.) behave the same way for the unsigned integer as they would have for the original `float`.
 
-#### Why would anyone want this though?
+#### Why would anyone want that though?
 
-- On the GPU its very handy to be able to find the range of some large chunk of data. For example; you might want an oriented bounding box for which part of the world is actually visible on screen. For that you would need the min and max of worldspace position in X, Y and Z across all pixels on screen. There are ways to keep thae data in float and reduce the data in a complex post processing step, sure, but it'd be super convenient to make use of the atomic_min and atomic_max operations. Alas, they only work for unsigned integers... You *could* just cast your floats normally and apply a bias to avoid dealing with negatives, but you're going to lose precision doing it that way, which will only get worse the larger a bias you need. Also a *real* cast (rather than a bit cast) can actually be pretty expensive.
+- On the GPU it can be a very handy tool when used used in conjunction with atomic operations. For example; you might want to find the bounding box that tightly contains the parts of your game world that are actually visible on screen. For that you want to record the min and max worldspace positions in X, Y and Z across all pixels on screen. There are ways to keep that data in float and reduce it in a complex post processing step, sure, but it would be more convenient to (at least in part) make use of the `atomic_min` and `atomic_max operations`. Alas, those operations only work for unsigned integers. You *could* rescale the numbers and apply a bias (to avoid negatives) then type cast your floats to unsigned ints, but you're going to have to pick a range of floats you want to handle **and** accept some loss of precision if you do it that way.\
+Having a perfect 1:1 mapping for which `atomic_min` and `atomic_max` still work would make things so much simpler...
+  - *At some point I may talk more about doing this efficiently and it's application in generating cascaded shadow maps.*
 
-- When performing a radix sort you need to be able to split your data up into ordered buckets, first by "small scale order" then by "large scale order". This is very simple if your number is an unsigned integer, first you sort into the appropriate bucket for the bottom 16 bits, then into the appropriate bucket for the top 16 bits, then you stitch the buckets together, one after the other and they are sorted. So if we needed to sort floats with a radix sort, it would be very useful if we could convert them to unsigned integers that had the same comparison order (so that the ordered buckets would still work).
+- When performing a radix sort you need to be able to split your data up into distinct ordered buckets; repeatedly moving all entries to their appropriate bucket, in multiple stages where the buckets for that stage correspond to some property that has more significance within the "complete" sort than the last stage.\
+This is fairly simple in a 2 stage radix sort of unsigned integers. First you sort each element into one of $2^{16}$ buckets corresponding to the **bottom** (or *least significant*) 16 bits, then iterate through all those buckets in order and move their entries into a new set of buckets corresponding to the **top** (or *most significant*) 16 bits, then you stitch the buckets together in order and, hey presto, the resulting array is sorted.\
+So, say you wanted to sort floats with a radix sort, it would be very useful if you could convert them to unsigned integers that had the same comparison order (so that the ordered buckets would still make sense).
 
 - Use your imagination... This is definitely something useful to have in your toolbox.
 
 #### How is it done?
 
-I'll give the code in C, hopefully the bit cast isn't too unreadble or offensive: 
+I'll give the code in C, hopefully the bit casts aren't too unreadble or offensive:
 
 To go from a `float` to a `uint`:
 ```
@@ -156,7 +162,7 @@ uint32_t float_to_uint(float f)
 }
 ```
 
-And to go from a `uint` back to a `float` when we're done with it:
+And to go from a `uint` back to the original `float` when you're done:
 ```
 float uint_to_float(uint32_t u)
 {
@@ -170,7 +176,7 @@ Not much to it is there?
 
 #### But *WHY* does that work?
 
-
+EXPLAIN
 
 ## Extras and "tidbits"
 
