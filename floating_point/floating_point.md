@@ -118,11 +118,48 @@ Some examples, again using `half` to keep them compact and remembering that for 
 *Note that the last two examples have the largest exponent* ($E_{\text{max}}$) *with the largest possible mantissa and, the smallest exponent* ($E_{\text{emin}}$) *with the smallest possible mantissa. These combinations result in the largest and smallest possible magnitudes for a "normal"* `half` *respectively.*
 
 
-## The Details
+## The Details 
 
 ### Sub-normal numbers
 
+When $E_{\text{storage}} = 0$ that indicates the number is subnormal, sometimes called "denormal". They use a very similar equation to normal numbers:
+
+$$
+\left\lbrace
+	\begin{array}{lr}
+		-1&, \text{if } s_{\text{bit}} = 1 \\
+		+1&, \text{if } s_{\text{bit}} = 0
+	\end{array}
+\right\rbrace \times (0 + \frac {M_{\text{storage}}} {2^{\text{M bit count}}}) \times \Large 2^{E_{\text{min}}} $$
+
+There are only 2 small differences compared to normal floats:
+
+- The mantissa no longer has an implicit leading one. (replaced with a zero here to highlight the change)
+
+- The exponent is simply $E_{\text{min}}$. Note that this is actually the **same** exponent as the smallest normal numbers (that is: the same as when $E_{\text{storage}} = 1$). 
+  - This means digits of a subnormal float's mantissa have the same significance (absolute size) as the digits of the smallest normal float's mantissa.
+
+So instead of changing the exponent when $E_{\text{storage}}$ goes from zero to one, instead just drop the implicit leading one of the mantissa.
+
+In this way, subnormal numbers allow the represented number to keep ticking down towards zero *smoothly* as $M_{\text{storage}}$ gets smaller.
+
+*A small caveat: There are a few places where full support of subnormal numbers isn't guaranteed, some GPU's for example will treat any `float` with* $E_{\text{storage}} = 0$ *as being zero, sometimes referred to as FTZ "flush to zero". This behaviour can also be enabled for certain operations on some CPU's to improve performance (generally this is done using a compiler flag and usually only affecting SIMD instructions)*
+
 #### Zero
+
+When $E_{\text{storage}} = 0$ and $M_{\text{storage}} = 0$ the equation we are left with is: 
+
+$$
+\left\lbrace
+	\begin{array}{lr}
+		-1&, \text{if } s_{\text{bit}} = 1 \\
+		+1&, \text{if } s_{\text{bit}} = 0
+	\end{array}
+\right\rbrace \times (0 + \frac {0} {2^{\text{M bit count}}}) \times \Large 2^{E_{\text{min}}} $$
+
+Which is simply zero. Though there is still the sign bit, and sure enough, zero in floating point is signed. Both positive **and** negative zero exist and are technically distinct, though they will (almost always) compare as if equal. (`-0 == 0`)
+
+Notice also that this means positive zero (for every float type) will have all bits set to zero, a quite useful property.
 
 ### INF & NAN
 
@@ -133,15 +170,15 @@ Some examples, again using `half` to keep them compact and remembering that for 
 
 For each of these; I'd highly recommend thinking about the problem yourself for a bit first. You'll remember the solution and understand it better if you do.
 
-### Order equivalent unsigned integer manipulated reinterpretation
+### Order preserving unsigned integer mapping 
 
-The title is quite a mouthful, but the goal of this is to map every `float` (or `double`/`half`) (that isn't INF or NAN) to an unsigned integer of the appropriate size, in such a way that all comparisons (`<` `>` etc.) behave the same way for the unsigned integer as they would have for the original `float`.
+The goal of this is to map every float (that isn't INF or NAN) of a particular type to an unsigned integer of the appropriate size, in such a way that all comparisons (`<` `>` etc.) between the target unsigned integers give the same result they would have for the source floats.
 
 #### Why would anyone want that though?
 
-- On the GPU it can be a very handy tool when used used in conjunction with atomic operations. For example; you might want to find the bounding box that tightly contains the parts of your game world that are actually visible on screen. For that you want to record the min and max worldspace positions in X, Y and Z across all pixels on screen. There are ways to keep that data in float and reduce it in a complex post processing step, sure, but it would be more convenient to (at least in part) make use of the `atomic_min` and `atomic_max operations`. Alas, those operations only work for unsigned integers. You *could* rescale the numbers and apply a bias (to avoid negatives) then type cast your floats to unsigned ints, but you're going to have to pick a range of floats you want to handle **and** accept some loss of precision if you do it that way.\
-Having a perfect 1:1 mapping for which `atomic_min` and `atomic_max` still work would make things so much simpler...
-  - *At some point I may talk more about doing this efficiently and it's application in generating cascaded shadow maps.*
+- On the GPU it can be a very handy tool when used used in conjunction with atomic operations. For example; you might want to find the bounding box that tightly contains the parts of your game world that are actually visible on screen. Put another way; record the min and max worldspace positions in X, Y and Z across all pixels on screen. There are ways to keep that data in float and reduce it in a complex post processing step, sure, but it would be more convenient to (at least in part) make use of the `atomic_min` and `atomic_max` operations. Alas, those operations only work for unsigned integers. You *could* rescale the numbers and apply a bias (to avoid negatives) then type cast your floats to unsigned ints, but you're going to have to pick a range of floats you want to handle **and** accept some loss of precision for small floats if you do it that way.\
+Having a perfect 1:1 mapping for which `atomic_min` and `atomic_max` will still work would make things so much simpler...
+  - *At some point I may talk in more detail about doing this efficiently and it's application in generating cascaded shadow maps.*
 
 - When performing a radix sort you need to be able to split your data up into distinct ordered buckets; repeatedly moving all entries to their appropriate bucket, in multiple stages where the buckets for that stage correspond to some property that has more significance within the "complete" sort than the last stage.\
 This is fairly simple in a 2 stage radix sort of unsigned integers. First you sort each element into one of $2^{16}$ buckets corresponding to the **bottom** (or *least significant*) 16 bits, then iterate through all those buckets in order and move their entries into a new set of buckets corresponding to the **top** (or *most significant*) 16 bits, then you stitch the buckets together in order and, hey presto, the resulting array is sorted.\
